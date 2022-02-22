@@ -7,6 +7,5 @@ edition = "2021"
 
 [dependencies]
 telegram-bot = "^0.8.0"
-youtube_dl = "^0.7.0"
 futures = "^0.3.21"
 tokio = { version = "0.2", features = ["full"] }
