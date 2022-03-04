@@ -21,10 +21,12 @@ async fn main() -> Result<(), Error> {
     let api = Api::new(token);
 
     let mut stream = api.stream();
+    stream.error_delay(std::time::Duration::from_secs(5u64));
     while let Some(update) = stream.next().await {
-        let update = update?;
-        if let UpdateKind::Message(message) = update.kind {
-            match_handles(api.clone(), message).await?;
+        if let Ok(update) = update {
+            if let UpdateKind::Message(message) = update.kind {
+                match_handles(api.clone(), message.clone());
+            }
         }
     }
     Ok(())
