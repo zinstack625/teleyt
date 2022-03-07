@@ -25,7 +25,12 @@ async fn main() -> Result<(), Error> {
     while let Some(update) = stream.next().await {
         if let Ok(update) = update {
             if let UpdateKind::Message(message) = update.kind {
-                match_handles(api.clone(), message.clone());
+                let api = api.clone();
+                tokio::spawn(async move {
+                    if let Err(error) = match_handles(api, message).await {
+                        println!("{}", error);
+                    }
+                });
             }
         }
     }
