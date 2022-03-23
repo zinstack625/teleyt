@@ -27,8 +27,9 @@ async fn main() -> Result<(), Error> {
             if let UpdateKind::Message(message) = update.kind {
                 let api = api.clone();
                 tokio::spawn(async move {
-                    if let Err(error) = match_handles(api, message).await {
+                    if let Err(error) = match_handles(api.clone(), message.clone()).await {
                         println!("{}", error);
+                        api.send(message.chat.text(error.to_string())).await;
                     }
                 });
             }
