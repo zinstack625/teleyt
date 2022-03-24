@@ -21,7 +21,7 @@ pub async fn vid_handle(api: Api, message: Message) -> Result<(), Error> {
     let mut vid_name = get_name(&link).unwrap_or_else(|_| { "unknown_name".to_string() });
     vid_name.push_str(".mp4");
     let vid = Command::new("yt-dlp")
-        .args(["-f", "[filesize_approx<=50m]", "-o", "-", &link])
+        .args(["-f", "b[filesize_approx<=50m]/bv+ba[filesize_approx<=50m]", "-o", "-", &link])
         .output();
     if let Ok(vid) = vid {
         if vid.stdout.is_empty() {
