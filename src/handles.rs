@@ -28,7 +28,7 @@ pub async fn vid_handle(api: Api, message: Message, link: &str) -> Result<(), Er
     let vid = Command::new("yt-dlp")
         .args([
             "-f",
-            "b[filesize_approx<=50m]/bv+ba[filesize_approx<=50m]",
+            "b[filesize<=50m]/b[filesize_approx<=50m]/bv+ba[filesize_approx<=50m]",
             "-o",
             "-",
             &link,
