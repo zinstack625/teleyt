@@ -1,22 +1,20 @@
-use futures::StreamExt;
-use telegram_bot::*;
+use frankenstein::*;
 use user_status::UserStatus;
 
 mod db;
 mod handles;
 mod user_status;
 
-async fn match_handles(api: Api, message: Message) -> Result<(), Error> {
-    if let MessageKind::Text { ref data, .. } = message.kind {
-        let msg_text = data.as_str();
-        if let Ok(status) = db::get_user_status(message.chat.id()).await {
+async fn match_handles(api: AsyncApi, message: Message) -> Result<(), Error> {
+    if let Some(msg_text) = message.text.clone() {
+        if let Ok(status) = db::get_user_status(message.chat.clone()).await {
             match status {
                 UserStatus::MusRequest => {
-                    handles::mus_handle(api, message.clone(), msg_text).await?;
+                    handles::mus_handle(api, message.clone(), &msg_text).await?;
                     return Ok(());
                 }
                 UserStatus::VidRequest => {
-                    handles::vid_handle(api, message.clone(), msg_text).await?;
+                    handles::vid_handle(api, message.clone(), &msg_text).await?;
                     return Ok(());
                 }
                 UserStatus::None => {}
@@ -29,18 +27,11 @@ async fn match_handles(api: Api, message: Message) -> Result<(), Error> {
                 handles::mus_handle(api, message.clone(), &msg_text[4..]).await?
             }
         } else {
-            empty_status_handle(api, message.clone(), msg_text).await?;
-        }
-    }
-    Ok(())
-}
-
-async fn empty_status_handle(api: Api, message: Message, text: &str) -> Result<(), Error> {
-    if let MessageKind::Text { ref data, .. } = message.kind {
-        if text.starts_with("/vid") {
-            handles::vid_empty_handle(api.clone(), message.clone()).await;
-        } else if text.starts_with("/mus") {
-            handles::mus_empty_handle(api.clone(), message.clone()).await;
+            if msg_text.starts_with("/vid") {
+                handles::set_status(api, message.chat, UserStatus::VidRequest).await;
+            } else if msg_text.starts_with("/mus") {
+                handles::set_status(api, message.chat, UserStatus::MusRequest).await;
+            }
         }
     }
     Ok(())
@@ -49,22 +40,42 @@ async fn empty_status_handle(api: Api, message: Message, text: &str) -> Result<(
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let token = std::env::var("TELEGRAM_BOT_TOKEN").expect("Set TELEGRAM_BOT_TOKEN envvar");
-    let api = Api::new(token);
 
-    let mut stream = api.stream();
-    stream.error_delay(std::time::Duration::from_secs(5u64));
-    while let Some(update) = stream.next().await {
-        if let Ok(update) = update {
-            if let UpdateKind::Message(message) = update.kind {
-                let api = api.clone();
-                tokio::spawn(async move {
-                    if let Err(error) = match_handles(api.clone(), message.clone()).await {
-                        println!("{}", error);
-                        api.send(message.chat.text(error.to_string())).await;
+    let api = AsyncApi::new(&token);
+    let update_params_builder =
+        GetUpdatesParams::builder().allowed_updates(vec!["message".to_string()]);
+
+    let mut update_params = update_params_builder.clone().build();
+
+    loop {
+        let results = api.get_updates(&update_params).await;
+        match results {
+            Ok(response) => {
+                for update in response.result {
+                    if let Some(message) = update.message {
+                        let api_clone = api.clone();
+                        tokio::spawn(async move {
+                            if let Err(error) =
+                                match_handles(api_clone.clone(), message.clone()).await
+                            {
+                                println!("{}", error);
+                                let error_params = SendMessageParams::builder()
+                                    .chat_id(message.chat.id)
+                                    .text(error.to_string())
+                                    .build();
+                                api_clone.send_message(&error_params).await;
+                            }
+                        });
+                        update_params = update_params_builder
+                            .clone()
+                            .offset(update.update_id + 1)
+                            .build();
                     }
-                });
+                }
+            }
+            Err(error) => {
+                println!("Failed to get updates! {:?}", error);
             }
         }
     }
-    Ok(())
 }

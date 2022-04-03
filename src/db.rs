@@ -29,13 +29,13 @@ pub fn open_redis() -> Option<redis::Connection> {
 }
 
 pub async fn set_user_status(
-    user: telegram_bot::ChatId,
+    user: frankenstein::Chat,
     status: user_status::UserStatus,
 ) -> Result<(), DbError> {
     let mut con = open_redis();
     if con.is_some() {
         let con = con.as_mut().unwrap();
-        let mut key = user.to_string();
+        let mut key = user.id.to_string();
         key.push_str(":status");
         if let Err(error) = redis::pipe()
             .set(&key, status as i32)
@@ -54,12 +54,12 @@ pub async fn set_user_status(
 }
 
 pub async fn get_user_status(
-    user: telegram_bot::ChatId,
+    user: frankenstein::Chat,
 ) -> Result<crate::user_status::UserStatus, DbError> {
     let mut con = open_redis();
     if con.is_some() {
         let con = con.as_mut().unwrap();
-        let mut key = user.to_string();
+        let mut key = user.id.to_string();
         key.push_str(":status");
         let status = con.get(&key).unwrap_or(0i32);
         return match status {
