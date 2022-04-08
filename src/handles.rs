@@ -25,7 +25,7 @@ async fn dwnld_file(link: &str, ftype: FileType) -> std::io::Result<(PathBuf, te
     let filename = filename.unwrap().to_string();
     let format = match ftype {
         Video => "b[filesize<=50m]/b[filesize_approx<=50m]/bv+ba[filesize_approx<=50m]",
-        Audio => "ba[ext=m4a][filesize<=50m]/ba[ext=m4a][filesize_approx<=50m]",
+        Audio => "ba[ext=m4a][filesize_approx<=50m]/ba[ext=m4a][filesize<=50m]",
     };
     Command::new("yt-dlp")
         .args(["-f", format, "-o", &filename, "-v", &link])
