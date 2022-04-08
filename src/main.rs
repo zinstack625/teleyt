@@ -1,20 +1,27 @@
 use frankenstein::*;
+use std::fs::File;
+use std::io::prelude::*;
 use user_status::UserStatus;
 
+mod config;
 mod db;
 mod handles;
 mod user_status;
 
-async fn match_handles(api: AsyncApi, message: Message) -> Result<(), Error> {
+async fn match_handles(
+    api: AsyncApi,
+    message: Message,
+    config: config::Config,
+) -> Result<(), Error> {
     if let Some(msg_text) = message.text.clone() {
         if let Ok(status) = db::get_user_status(message.chat.clone()).await {
             match status {
                 UserStatus::MusRequest => {
-                    handles::mus_handle(api, message.clone(), &msg_text).await?;
+                    handles::mus_handle(api, message.clone(), &msg_text, config).await?;
                     return Ok(());
                 }
                 UserStatus::VidRequest => {
-                    handles::vid_handle(api, message.clone(), &msg_text).await?;
+                    handles::vid_handle(api, message.clone(), &msg_text, config).await?;
                     return Ok(());
                 }
                 UserStatus::None => {}
@@ -22,15 +29,15 @@ async fn match_handles(api: AsyncApi, message: Message) -> Result<(), Error> {
         }
         if msg_text.len() > 4 {
             if msg_text.starts_with("/vid") {
-                handles::vid_handle(api, message.clone(), &msg_text[4..]).await?
+                handles::vid_handle(api, message.clone(), &msg_text[4..], config).await?
             } else if msg_text.starts_with("/mus") {
-                handles::mus_handle(api, message.clone(), &msg_text[4..]).await?
+                handles::mus_handle(api, message.clone(), &msg_text[4..], config).await?
             }
         } else {
             if msg_text.starts_with("/vid") {
-                handles::set_status(api, message.chat, UserStatus::VidRequest).await;
+                handles::set_status(api, message.chat, UserStatus::VidRequest, config).await;
             } else if msg_text.starts_with("/mus") {
-                handles::set_status(api, message.chat, UserStatus::MusRequest).await;
+                handles::set_status(api, message.chat, UserStatus::MusRequest, config).await;
             }
         }
     }
@@ -39,7 +46,24 @@ async fn match_handles(api: AsyncApi, message: Message) -> Result<(), Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let token = std::env::var("TELEGRAM_BOT_TOKEN").expect("Set TELEGRAM_BOT_TOKEN envvar");
+    let config: config::Config = {
+        if let Ok(mut file) = File::options()
+            .read(true)
+            .write(false)
+            .open("teleconfig.toml")
+        {
+            let mut contents = String::new();
+            file.read_to_string(&mut contents);
+            if let Ok(config) = toml::from_str(&contents) {
+                config
+            } else {
+                panic!("Config malformed!")
+            }
+        } else {
+            panic!("Unable to open config file teleconfig.toml")
+        }
+    };
+    let token = config.telegram_token.clone();
 
     let api = AsyncApi::new(&token);
     let update_params_builder =
@@ -54,9 +78,11 @@ async fn main() -> Result<(), Error> {
                 for update in response.result {
                     if let Some(message) = update.message {
                         let api_clone = api.clone();
+                        let config_clone = config.clone();
                         tokio::spawn(async move {
                             if let Err(error) =
-                                match_handles(api_clone.clone(), message.clone()).await
+                                match_handles(api_clone.clone(), message.clone(), config_clone)
+                                    .await
                             {
                                 println!("{}", error);
                                 let error_params = SendMessageParams::builder()

@@ -11,7 +11,11 @@ enum FileType {
     Audio,
 }
 
-async fn dwnld_file(link: &str, ftype: FileType) -> std::io::Result<(PathBuf, tempfile::TempDir)> {
+async fn dwnld_file(
+    link: &str,
+    ftype: FileType,
+    config: crate::config::Config,
+) -> std::io::Result<(PathBuf, tempfile::TempDir)> {
     let dir = tempdir()?;
     let name = String::from("file");
     let filepath = dir.path().join(name);
@@ -24,8 +28,8 @@ async fn dwnld_file(link: &str, ftype: FileType) -> std::io::Result<(PathBuf, te
     }
     let filename = filename.unwrap().to_string();
     let format = match ftype {
-        Video => "b[filesize<=50m]/b[filesize_approx<=50m]/bv+ba[filesize_approx<=50m]",
-        Audio => "ba[ext=m4a][filesize_approx<=50m]/ba[ext=m4a][filesize<=50m]",
+        Video => &config.vid_format,
+        Audio => &config.aud_format,
     };
     Command::new("yt-dlp")
         .args(["-f", format, "-o", &filename, "-v", &link])
@@ -50,6 +54,7 @@ pub async fn set_status(
     api: AsyncApi,
     id: Chat,
     status: user_status::UserStatus,
+    config: crate::config::Config,
 ) -> Result<(), crate::db::DbError> {
     println!("Setting user {} status to {:?}", id.id, status);
     let status_fut = tokio::spawn(db::set_user_status(id.clone(), status));
@@ -65,10 +70,15 @@ pub async fn set_status(
     Ok(())
 }
 
-pub async fn vid_handle(api: AsyncApi, message: Message, link: &str) -> Result<(), Error> {
+pub async fn vid_handle(
+    api: AsyncApi,
+    message: Message,
+    link: &str,
+    config: crate::config::Config,
+) -> Result<(), Error> {
     let link_name = link.to_string();
     let vid_name = tokio::spawn(async move { get_name(&link_name).await });
-    let vid = dwnld_file(link, FileType::Video);
+    let vid = dwnld_file(link, FileType::Video, config.clone());
     if let Ok((vid, _dir)) = vid.await {
         let mut vid_name = vid_name.await.unwrap().unwrap_or("unknown".to_string());
         let vid_name = vid.parent().unwrap().join(vid_name);
@@ -106,10 +116,15 @@ pub async fn vid_handle(api: AsyncApi, message: Message, link: &str) -> Result<(
     Ok(())
 }
 
-pub async fn mus_handle(api: AsyncApi, message: Message, link: &str) -> Result<(), Error> {
+pub async fn mus_handle(
+    api: AsyncApi,
+    message: Message,
+    link: &str,
+    config: crate::config::Config,
+) -> Result<(), Error> {
     let link_name = link.to_string();
     let mus_name = tokio::spawn(async move { get_name(&link_name).await });
-    let mus = dwnld_file(link, FileType::Audio);
+    let mus = dwnld_file(link, FileType::Audio, config.clone());
     if let Ok((mus, _dir)) = mus.await {
         let mut mus_name = mus_name.await.unwrap().unwrap_or("unknown".to_string());
         let mus_name = mus.parent().unwrap().join(mus_name);

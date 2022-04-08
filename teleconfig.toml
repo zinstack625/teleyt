@@ -1,0 +1,6 @@
+# This needs to be set
+telegram_token = ""
+vid_format = "b[filesize<=50m]/b[filesize_approx<=50m]/bv+ba[filesize_approx<=50m]"
+aud_format = "ba[ext=m4a][filesize_approx<=50m]/ba[ext=m4a][filesize<=50m]"
+# Not required
+redis_address = "redis://127.0.0.1/"
