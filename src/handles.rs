@@ -31,10 +31,24 @@ async fn dwnld_file(
         Video => &config.vid_format,
         Audio => &config.aud_format,
     };
-    Command::new("yt-dlp")
+    let mut proc = Command::new("yt-dlp")
         .args(["-f", format, "-o", &filename, "-v", &link])
-        .status()
-        .await?;
+        .spawn()?;
+    loop {
+        match proc.try_wait() {
+            Ok(Some(status)) => {
+                if !status.success() {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::BrokenPipe,
+                        "Process failed to execute",
+                    ));
+                }
+                break;
+            }
+            Ok(None) => tokio::task::yield_now().await,
+            Err(a) => return Err(a),
+        };
+    }
     Ok((filepath, dir))
 }
 
