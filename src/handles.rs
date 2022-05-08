@@ -90,11 +90,15 @@ pub async fn vid_handle(
     link: &str,
     config: crate::config::Config,
 ) -> Result<(), Error> {
+    tokio::spawn(db::set_user_status(
+        message.chat,
+        user_status::UserStatus::None,
+    ));
     let link_name = link.to_string();
     let vid_name = tokio::spawn(async move { get_name(&link_name).await });
     let vid = dwnld_file(link, FileType::Video, config.clone());
     if let Ok((vid, _dir)) = vid.await {
-        let mut vid_name = vid_name.await.unwrap().unwrap_or("unknown".to_string());
+        let vid_name = vid_name.await.unwrap().unwrap_or("unknown".to_string());
         let vid_name = vid.parent().unwrap().join(vid_name);
         std::fs::rename(vid, vid_name.clone());
         let api_clone = api.clone();
@@ -123,10 +127,6 @@ pub async fn vid_handle(
             api.send_message(&error_msg_params).await;
         });
     }
-    tokio::spawn(db::set_user_status(
-        message.chat,
-        user_status::UserStatus::None,
-    ));
     Ok(())
 }
 
@@ -136,6 +136,10 @@ pub async fn mus_handle(
     link: &str,
     config: crate::config::Config,
 ) -> Result<(), Error> {
+    tokio::spawn(db::set_user_status(
+        message.chat,
+        user_status::UserStatus::None,
+    ));
     let link_name = link.to_string();
     let mus_name = tokio::spawn(async move { get_name(&link_name).await });
     let mus = dwnld_file(link, FileType::Audio, config.clone());
@@ -169,9 +173,5 @@ pub async fn mus_handle(
             api.send_message(&error_msg_params).await;
         });
     }
-    tokio::spawn(db::set_user_status(
-        message.chat,
-        user_status::UserStatus::None,
-    ));
     Ok(())
 }

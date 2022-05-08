@@ -14,19 +14,6 @@ async fn match_handles(
     config: config::Config,
 ) -> Result<(), Error> {
     if let Some(msg_text) = message.text.clone() {
-        if let Ok(status) = db::get_user_status(message.chat.clone()).await {
-            match status {
-                UserStatus::MusRequest => {
-                    handles::mus_handle(api, message.clone(), &msg_text, config).await?;
-                    return Ok(());
-                }
-                UserStatus::VidRequest => {
-                    handles::vid_handle(api, message.clone(), &msg_text, config).await?;
-                    return Ok(());
-                }
-                UserStatus::None => {}
-            }
-        }
         if msg_text.len() > 4 {
             if msg_text.starts_with("/vid") {
                 handles::vid_handle(api, message.clone(), &msg_text[4..], config).await?
@@ -38,6 +25,19 @@ async fn match_handles(
                 handles::set_status(api, message.chat, UserStatus::VidRequest, config).await;
             } else if msg_text.starts_with("/mus") {
                 handles::set_status(api, message.chat, UserStatus::MusRequest, config).await;
+            }
+        }
+        if let Ok(status) = db::get_user_status(message.chat.clone()).await {
+            match status {
+                UserStatus::MusRequest => {
+                    handles::mus_handle(api, message.clone(), &msg_text, config).await?;
+                    return Ok(());
+                }
+                UserStatus::VidRequest => {
+                    handles::vid_handle(api, message.clone(), &msg_text, config).await?;
+                    return Ok(());
+                }
+                UserStatus::None => {}
             }
         }
     }
