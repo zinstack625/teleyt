@@ -101,12 +101,14 @@ pub async fn vid_handle(
     let vid_name = tokio::spawn(async move { get_name(&link_name).await });
     let vid = dwnld_file(link, FileType::Video, config.clone());
     if let Ok((mut vid, _dir)) = vid.await {
-        let vid_name = vid_name
-            .await
-            .unwrap()
-            .unwrap_or_else(|_| "unknown".to_string());
-        if std::fs::rename(vid.clone(), vid_name.clone()).is_ok() {
-            vid = vid.parent().unwrap().join(vid_name);
+        let new_vid_path = vid.parent().unwrap().join(
+            vid_name
+                .await
+                .unwrap()
+                .unwrap_or_else(|_| "unknown".to_string()),
+        );
+        if std::fs::rename(vid.clone(), new_vid_path.clone()).is_ok() {
+            vid = new_vid_path;
         }
         let api_clone = api.clone();
         tokio::spawn(async move {
@@ -157,13 +159,14 @@ pub async fn mus_handle(
     let mus_name = tokio::spawn(async move { get_name(&link_name).await });
     let mus = dwnld_file(link, FileType::Audio, config.clone());
     if let Ok((mut mus, _dir)) = mus.await {
-        let mus_name = mus_name
-            .await
-            .unwrap()
-            .unwrap_or_else(|_| "unknown".to_string());
-        let mus_name = mus.parent().unwrap().join(mus_name);
-        if std::fs::rename(mus.clone(), mus_name.clone()).is_ok() {
-            mus = mus.parent().unwrap().join(mus_name);
+        let new_mus_path = mus.parent().unwrap().join(
+            mus_name
+                .await
+                .unwrap()
+                .unwrap_or_else(|_| "unknown".to_string()),
+        );
+        if std::fs::rename(mus.clone(), new_mus_path.clone()).is_ok() {
+            mus = new_mus_path;
         }
         let api_clone = api.clone();
         tokio::spawn(async move {
