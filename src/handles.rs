@@ -45,7 +45,10 @@ async fn dwnld_file(
                 }
                 break;
             }
-            Ok(None) => tokio::task::yield_now().await,
+            Ok(None) => {
+                let _ = tokio::time::sleep(std::time::Duration::from_millis(5));
+                tokio::task::yield_now().await
+            }
             Err(a) => return Err(a),
         };
     }
