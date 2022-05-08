@@ -62,11 +62,11 @@ pub async fn get_user_status(
         let mut key = user.id.to_string();
         key.push_str(":status");
         let status = con.get(&key).unwrap_or(0i32);
-        return match status {
+        match status {
             1 => Ok(UserStatus::VidRequest),
             2 => Ok(UserStatus::MusRequest),
             _ => Ok(UserStatus::None),
-        };
+        }
     } else {
         Err(DbError::Error)
     }

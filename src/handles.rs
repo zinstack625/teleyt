@@ -28,11 +28,11 @@ async fn dwnld_file(
     }
     let filename = filename.unwrap().to_string();
     let format = match ftype {
-        Video => &config.vid_format,
-        Audio => &config.aud_format,
+        FileType::Video => &config.vid_format,
+        FileType::Audio => &config.aud_format,
     };
     let mut proc = Command::new("yt-dlp")
-        .args(["-f", format, "-o", &filename, "-v", &link])
+        .args(["-f", format, "-o", &filename, "-v", link])
         .spawn()?;
     loop {
         match proc.try_wait() {
@@ -54,12 +54,12 @@ async fn dwnld_file(
 
 async fn get_name(url: &str) -> Result<String, std::io::Error> {
     let name = Command::new("yt-dlp")
-        .args(["--skip-download", "--get-title", &url])
+        .args(["--skip-download", "--get-title", url])
         .output()
         .await?
         .stdout;
     let name = std::str::from_utf8(&name)
-        .unwrap_or_else(|_| "unknown_name")
+        .unwrap_or("unknown_name")
         .to_string();
     Ok(name)
 }
@@ -68,7 +68,7 @@ pub async fn set_status(
     api: AsyncApi,
     id: Chat,
     status: user_status::UserStatus,
-    config: crate::config::Config,
+    _config: crate::config::Config,
 ) -> Result<(), crate::db::DbError> {
     println!("Setting user {} status to {:?}", id.id, status);
     let status_fut = tokio::spawn(db::set_user_status(id.clone(), status));
@@ -78,7 +78,7 @@ pub async fn set_status(
             .chat_id(id.id)
             .text("What to send?")
             .build();
-        api.send_message(&send_msg_params).await;
+        let _ = api.send_message(&send_msg_params).await;
     });
     status_fut.await.unwrap()?;
     Ok(())
@@ -91,32 +91,42 @@ pub async fn vid_handle(
     config: crate::config::Config,
 ) -> Result<(), Error> {
     tokio::spawn(db::set_user_status(
-        message.chat,
+        message.chat.clone(),
         user_status::UserStatus::None,
     ));
     let link_name = link.to_string();
     let vid_name = tokio::spawn(async move { get_name(&link_name).await });
     let vid = dwnld_file(link, FileType::Video, config.clone());
-    if let Ok((vid, _dir)) = vid.await {
-        let vid_name = vid_name.await.unwrap().unwrap_or("unknown".to_string());
-        let vid_name = vid.parent().unwrap().join(vid_name);
-        std::fs::rename(vid, vid_name.clone());
+    if let Ok((mut vid, _dir)) = vid.await {
+        let vid_name = vid_name
+            .await
+            .unwrap()
+            .unwrap_or_else(|_| "unknown".to_string());
+        if std::fs::rename(vid.clone(), vid_name.clone()).is_ok() {
+            vid = vid.parent().unwrap().join(vid_name);
+        }
         let api_clone = api.clone();
         tokio::spawn(async move {
             // maintain ownership of tempdir
             let _dir = _dir;
             let send_vid_params = SendVideoParams::builder()
                 .chat_id(message.chat.id)
-                .video(vid_name)
+                .video(vid)
                 .build();
-            api_clone.send_video(&send_vid_params).await;
+            if let Err(some) = api_clone.send_video(&send_vid_params).await {
+                let error_msg_params = SendMessageParams::builder()
+                    .chat_id(message.chat.id)
+                    .text("Something went wrong: ".to_string() + &some.to_string())
+                    .build();
+                let _ = api_clone.send_message(&error_msg_params).await;
+            }
         });
         tokio::spawn(async move {
             let delete_msg_params = DeleteMessageParams::builder()
                 .chat_id(message.chat.id)
                 .message_id(message.message_id)
                 .build();
-            api.delete_message(&delete_msg_params).await;
+            let _ = api.delete_message(&delete_msg_params).await;
         });
     } else {
         tokio::spawn(async move {
@@ -124,7 +134,7 @@ pub async fn vid_handle(
                 .chat_id(message.chat.id)
                 .text("Something went wrong")
                 .build();
-            api.send_message(&error_msg_params).await;
+            let _ = api.send_message(&error_msg_params).await;
         });
     }
     Ok(())
@@ -137,32 +147,43 @@ pub async fn mus_handle(
     config: crate::config::Config,
 ) -> Result<(), Error> {
     tokio::spawn(db::set_user_status(
-        message.chat,
+        message.chat.clone(),
         user_status::UserStatus::None,
     ));
     let link_name = link.to_string();
     let mus_name = tokio::spawn(async move { get_name(&link_name).await });
     let mus = dwnld_file(link, FileType::Audio, config.clone());
-    if let Ok((mus, _dir)) = mus.await {
-        let mut mus_name = mus_name.await.unwrap().unwrap_or("unknown".to_string());
+    if let Ok((mut mus, _dir)) = mus.await {
+        let mus_name = mus_name
+            .await
+            .unwrap()
+            .unwrap_or_else(|_| "unknown".to_string());
         let mus_name = mus.parent().unwrap().join(mus_name);
-        std::fs::rename(mus, mus_name.clone());
+        if std::fs::rename(mus.clone(), mus_name.clone()).is_ok() {
+            mus = mus.parent().unwrap().join(mus_name);
+        }
         let api_clone = api.clone();
         tokio::spawn(async move {
             // maintain ownership of tempdir
             let _dir = _dir;
             let send_mus_params = SendAudioParams::builder()
                 .chat_id(message.chat.id)
-                .audio(mus_name)
+                .audio(mus)
                 .build();
-            api_clone.send_audio(&send_mus_params).await;
+            if let Err(some) = api_clone.send_audio(&send_mus_params).await {
+                let error_msg_params = SendMessageParams::builder()
+                    .chat_id(message.chat.id)
+                    .text("Something went wrong: ".to_string() + &some.to_string())
+                    .build();
+                let _ = api_clone.send_message(&error_msg_params).await;
+            }
         });
         tokio::spawn(async move {
             let delete_msg_params = DeleteMessageParams::builder()
                 .chat_id(message.chat.id)
                 .message_id(message.message_id)
                 .build();
-            api.delete_message(&delete_msg_params).await;
+            let _ = api.delete_message(&delete_msg_params).await;
         });
     } else {
         tokio::spawn(async move {
@@ -170,7 +191,7 @@ pub async fn mus_handle(
                 .chat_id(message.chat.id)
                 .text("Something went wrong")
                 .build();
-            api.send_message(&error_msg_params).await;
+            let _ = api.send_message(&error_msg_params).await;
         });
     }
     Ok(())

@@ -15,17 +15,18 @@ async fn match_handles(
 ) -> Result<(), Error> {
     if let Some(msg_text) = message.text.clone() {
         if msg_text.len() > 4 {
-            if msg_text.starts_with("/vid") {
-                handles::vid_handle(api, message.clone(), &msg_text[4..], config).await?
-            } else if msg_text.starts_with("/mus") {
-                handles::mus_handle(api, message.clone(), &msg_text[4..], config).await?
+            if let Some(text) = msg_text.strip_prefix("/vid") {
+                handles::vid_handle(api, message.clone(), text, config).await?
+            } else if let Some(text) = msg_text.strip_prefix("/mus") {
+                handles::mus_handle(api, message.clone(), text, config).await?
             }
-        } else {
-            if msg_text.starts_with("/vid") {
-                handles::set_status(api, message.chat, UserStatus::VidRequest, config).await;
-            } else if msg_text.starts_with("/mus") {
-                handles::set_status(api, message.chat, UserStatus::MusRequest, config).await;
-            }
+            return Ok(());
+        } else if msg_text.starts_with("/vid") {
+            let _ = handles::set_status(api, message.chat, UserStatus::VidRequest, config).await;
+            return Ok(());
+        } else if msg_text.starts_with("/mus") {
+            let _ = handles::set_status(api, message.chat, UserStatus::MusRequest, config).await;
+            return Ok(());
         }
         if let Ok(status) = db::get_user_status(message.chat.clone()).await {
             match status {
@@ -53,7 +54,8 @@ async fn main() -> Result<(), Error> {
             .open("teleconfig.toml")
         {
             let mut contents = String::new();
-            file.read_to_string(&mut contents);
+            file.read_to_string(&mut contents)
+                .expect("Unable to read config!");
             if let Ok(config) = toml::from_str(&contents) {
                 config
             } else {
@@ -89,7 +91,7 @@ async fn main() -> Result<(), Error> {
                                     .chat_id(message.chat.id)
                                     .text(error.to_string())
                                     .build();
-                                api_clone.send_message(&error_params).await;
+                                let _ = api_clone.send_message(&error_params).await;
                             }
                         });
                         update_params = update_params_builder
