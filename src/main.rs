@@ -14,7 +14,7 @@ async fn match_handles(
     config: config::Config,
 ) -> Result<(), Error> {
     if let Some(msg_text) = message.text.clone() {
-        if let Ok(status) = db::get_user_status(message.chat.clone()).await {
+        if let Ok(status) = db::get_user_status(message.chat.clone(), config.clone()).await {
             match status {
                 UserStatus::MusRequest => {
                     handles::mus_handle(api, message.clone(), &msg_text, config).await?;

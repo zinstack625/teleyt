@@ -6,9 +6,8 @@ pub enum DbError {
     Error,
 }
 
-pub fn open_redis() -> Option<redis::Connection> {
-    let address = std::env::var("REDIS_ADDRESS");
-    if let Ok(address) = address {
+pub fn open_redis(config: crate::config::Config) -> Option<redis::Connection> {
+    if let Some(address) = config.redis_address {
         let client = redis::Client::open(address);
         match client {
             Ok(client) => {
@@ -31,8 +30,9 @@ pub fn open_redis() -> Option<redis::Connection> {
 pub async fn set_user_status(
     user: frankenstein::Chat,
     status: user_status::UserStatus,
+    config: crate::config::Config,
 ) -> Result<(), DbError> {
-    let mut con = open_redis();
+    let mut con = open_redis(config);
     if con.is_some() {
         let con = con.as_mut().unwrap();
         let mut key = user.id.to_string();
@@ -55,8 +55,9 @@ pub async fn set_user_status(
 
 pub async fn get_user_status(
     user: frankenstein::Chat,
+    config: crate::config::Config,
 ) -> Result<crate::user_status::UserStatus, DbError> {
-    let mut con = open_redis();
+    let mut con = open_redis(config);
     if con.is_some() {
         let con = con.as_mut().unwrap();
         let mut key = user.id.to_string();

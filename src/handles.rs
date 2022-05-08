@@ -71,10 +71,10 @@ pub async fn set_status(
     api: AsyncApi,
     id: Chat,
     status: user_status::UserStatus,
-    _config: crate::config::Config,
+    config: crate::config::Config,
 ) -> Result<(), crate::db::DbError> {
     println!("Setting user {} status to {:?}", id.id, status);
-    let status_fut = tokio::spawn(db::set_user_status(id.clone(), status));
+    let status_fut = tokio::spawn(db::set_user_status(id.clone(), status, config.clone()));
     tokio::spawn(async move {
         let api = api.clone();
         let send_msg_params = SendMessageParams::builder()
@@ -96,6 +96,7 @@ pub async fn vid_handle(
     tokio::spawn(db::set_user_status(
         message.chat.clone(),
         user_status::UserStatus::None,
+        config.clone(),
     ));
     let link_name = link.to_string();
     let vid_name = tokio::spawn(async move { get_name(&link_name).await });
@@ -154,6 +155,7 @@ pub async fn mus_handle(
     tokio::spawn(db::set_user_status(
         message.chat.clone(),
         user_status::UserStatus::None,
+        config.clone(),
     ));
     let link_name = link.to_string();
     let mus_name = tokio::spawn(async move { get_name(&link_name).await });
