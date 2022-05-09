@@ -8,6 +8,10 @@ mod db;
 mod handles;
 mod user_status;
 
+fn known_sites(link: &str) -> bool {
+    link.starts_with("https://youtu.be") || link.starts_with("https://vk.com/video")
+}
+
 async fn match_handles(
     api: AsyncApi,
     message: Message,
@@ -17,11 +21,11 @@ async fn match_handles(
         if let Ok(status) = db::get_user_status(message.chat.clone(), config.clone()).await {
             match status {
                 UserStatus::MusRequest => {
-                    handles::mus_handle(api, message.clone(), &msg_text, config).await?;
+                    handles::mus_handle(api, message, &msg_text, config).await?;
                     return Ok(());
                 }
                 UserStatus::VidRequest => {
-                    handles::vid_handle(api, message.clone(), &msg_text, config).await?;
+                    handles::vid_handle(api, message, &msg_text, config).await?;
                     return Ok(());
                 }
                 UserStatus::None => {}
@@ -29,9 +33,11 @@ async fn match_handles(
         }
         if msg_text.len() > 4 {
             if let Some(text) = msg_text.strip_prefix("/vid") {
-                handles::vid_handle(api, message.clone(), text, config).await?
+                handles::vid_handle(api, message, text, config).await?
             } else if let Some(text) = msg_text.strip_prefix("/mus") {
-                handles::mus_handle(api, message.clone(), text, config).await?
+                handles::mus_handle(api, message, text, config).await?
+            } else if known_sites(&msg_text) {
+                let _ = handles::vid_handle(api, message, &msg_text, config).await?;
             }
             return Ok(());
         } else if msg_text.starts_with("/vid") {
